@@ -20,6 +20,12 @@ public class Expense {
         this.description = description;
     }
 
+    @Override
+    public boolean equals(Object o) {
+      Expense expense = (Expense) o;
+      return this.id == expense.getId();
+    }
+
     public Long getId() {
         return id;
     }
@@ -45,10 +51,23 @@ public class Expense {
     }
 
     public String getDate() {
-        return date;
+      //Date format: YYYY-MM-DD
+      return date;
     }
 
     public void setDate(String date) {
         this.date = date;
+    }
+
+    public String getYear() {
+      return this.date.substring(0, 4);
+    }
+
+    public String getMonth() {
+      return this.date.substring(5, 7);
+    }
+
+    public String getDay() {
+      return this.date.substring(8, 10);
     }
 }
