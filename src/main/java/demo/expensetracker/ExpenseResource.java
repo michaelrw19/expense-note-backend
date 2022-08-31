@@ -64,15 +64,22 @@ public class ExpenseResource {
   // Expense Functions //
   @GetMapping("/getExpensesByMonth")
   public ResponseEntity<List<Expense>> getExpensesByMonth(String date) {
-    List<Expense> expenses = this.getExpensesByMonth_Private(date);
+    List<Expense> expenses = this.getExpensesByDate_Private(date);
+    return new ResponseEntity<>(expenses, HttpStatus.OK);
+  }
+
+  @GetMapping("/getExpensesByYear")
+  public ResponseEntity<List<Expense>> getExpensesByYear(String year) {
+    List<Expense> expenses = this.getExpensesByDate_Private(year);
+    Collections.sort(expenses);
     return new ResponseEntity<>(expenses, HttpStatus.OK);
   }
   // Expense Functions //
 
-  // Filter Functions //
+  // Search Filter Functions //
   @GetMapping("/applySearchFilter")
   public ResponseEntity<List<Expense>> applySearchFilter(String keyword, String date) {
-    List<Expense> expenses = this.getExpensesByMonth_Private(date);
+    List<Expense> expenses = this.getExpensesByDate_Private(date);
     List<Expense> searchedExpenses = new ArrayList<>();
 
     ListIterator<Expense> expenseIterator = expenses.listIterator();
@@ -80,16 +87,19 @@ public class ExpenseResource {
     while (expenseIterator.hasNext()) {
       Expense expense = expenseIterator.next();
       String expenseDescription = expense.getDescription().toLowerCase();
-      if (expenseDescription.substring(0, searchKeyword.length()).equals(searchKeyword)) {
+      int length = searchKeyword.length();
+      if (expenseDescription.length() >= length && expenseDescription.substring(0, length).equals(searchKeyword)) {
         searchedExpenses.add(expense);
       }
     }
     return new ResponseEntity<>(searchedExpenses, HttpStatus.OK);
   }
+  // Search Filter Functions //
 
+  // Cost Filter Functions //
   @GetMapping("/applyCostFilter")
   public ResponseEntity<List<Expense>> applyCostFilter(Double range1, Double range2, String code, String date) {
-    List<Expense> expenses = this.getExpensesByMonth_Private(date);
+    List<Expense> expenses = this.getExpensesByDate_Private(date);
     List<Expense> searchedExpenses = new ArrayList<>();
 
     ListIterator<Expense> expenseIterator = expenses.listIterator();
@@ -140,8 +150,13 @@ public class ExpenseResource {
     }
     return new ResponseEntity<>(searchedExpenses, HttpStatus.OK);
   }
-  // Filter Functions //
+  // Cost Filter Functions //
 
+  // Sort Filter Functions //
+
+
+
+  // Cost Filter Functions //
 
   @GetMapping("/all")
   public ResponseEntity<List<Expense>> getAllExpenses () {
@@ -181,7 +196,7 @@ public class ExpenseResource {
     this.costs.put(year, new Double[12]);
     this.totalCost.put(year, 0.0);
   }
-  private List<Expense> getExpensesByMonth_Private (String date) {
+  private List<Expense> getExpensesByDate_Private (String date) {
     List<Expense> newExpenses = new ArrayList<>();
     ListIterator<Expense> expenseIterator = expenseService.findAllExpenses().listIterator();
     while (expenseIterator.hasNext()) {

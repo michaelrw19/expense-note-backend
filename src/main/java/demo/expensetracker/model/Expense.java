@@ -1,9 +1,12 @@
 package demo.expensetracker.model;
 
 import javax.persistence.*;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 @Entity
-public class Expense {
+public class Expense implements Comparable<Expense> {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, updatable = false)
@@ -70,4 +73,14 @@ public class Expense {
     public String getDay() {
       return this.date.substring(8, 10);
     }
+
+  @Override
+  public int compareTo(Expense o) {
+    int thisDate = Integer.parseInt(this.getMonth() + this.getDay());
+    int otherDate = Integer.parseInt(o.getMonth() + o.getDay());
+
+    if (thisDate > otherDate) return 1;
+    else if (thisDate == otherDate) return 0;
+    else return -1;
+  }
 }
