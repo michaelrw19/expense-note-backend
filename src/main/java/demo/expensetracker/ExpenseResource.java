@@ -1,5 +1,7 @@
 package demo.expensetracker;
 
+import demo.expensetracker.comparator.CostComparator;
+import demo.expensetracker.comparator.DateComparator;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,14 @@ public class ExpenseResource {
     this.expenseService = expenseService;
   }
 
+
+  @GetMapping("/TEST")
+  public ResponseEntity<String> getRangesTEST (String stringRange) {
+    Double[] range = this.getRanges(stringRange, "GT");
+    System.out.println(range[0]);
+    System.out.println(range[1]);
+    return new ResponseEntity<>(stringRange, HttpStatus.OK);
+  }
   // Cost Functions //
   @GetMapping("/totalCost")
   public ResponseEntity<String> getTotalExpense(String date) {
@@ -68,10 +78,23 @@ public class ExpenseResource {
     return new ResponseEntity<>(expenses, HttpStatus.OK);
   }
 
+  @GetMapping("/getExpensesByMonthSorted")
+  //Sort Filter applied here
+  public ResponseEntity<List<Expense>> getExpensesByMonth(String date, String sortCode) {
+    List<Expense> expenses = this.getExpensesByDate_Private(date);
+    if(sortCode.equals("CLH") || sortCode.equals("CHL")) {
+      Collections.sort(expenses, new CostComparator());
+    }
+    else if(sortCode.equals("DOR") || sortCode.equals("DRO")) {
+      Collections.sort(expenses, new DateComparator());
+    }
+    return new ResponseEntity<>(expenses, HttpStatus.OK);
+  }
+
   @GetMapping("/getExpensesByYear")
   public ResponseEntity<List<Expense>> getExpensesByYear(String year) {
     List<Expense> expenses = this.getExpensesByDate_Private(year);
-    Collections.sort(expenses);
+    Collections.sort(expenses, new DateComparator());
     return new ResponseEntity<>(expenses, HttpStatus.OK);
   }
   // Expense Functions //
@@ -98,16 +121,19 @@ public class ExpenseResource {
 
   // Cost Filter Functions //
   @GetMapping("/applyCostFilter")
-  public ResponseEntity<List<Expense>> applyCostFilter(Double range1, Double range2, String code, String date) {
+  public ResponseEntity<List<Expense>> applyCostFilter(String rangeString, String code, String date) {
+    System.out.println(code);
+    Double[] range = this.getRanges(rangeString, code);
     List<Expense> expenses = this.getExpensesByDate_Private(date);
     List<Expense> searchedExpenses = new ArrayList<>();
 
     ListIterator<Expense> expenseIterator = expenses.listIterator();
     if (code.equals("GT")){ //Greater Than
+      System.out.println("HERE");
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
-        if (expenseCost > range1) { //Greater Than
+        if (expenseCost > range[1]) {
           searchedExpenses.add(expense);
         }
       }
@@ -116,7 +142,7 @@ public class ExpenseResource {
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
-        if (expenseCost >= range1) {
+        if (expenseCost >= range[1]) {
           searchedExpenses.add(expense);
         }
       }
@@ -125,7 +151,7 @@ public class ExpenseResource {
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
-        if (expenseCost < range1) {
+        if (expenseCost < range[1]) {
           searchedExpenses.add(expense);
         }
       }
@@ -134,7 +160,7 @@ public class ExpenseResource {
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
-        if (expenseCost <= range1) {
+        if (expenseCost <= range[1]) {
           searchedExpenses.add(expense);
         }
       }
@@ -143,13 +169,14 @@ public class ExpenseResource {
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
-        if (expenseCost >= range1 && expenseCost <= range2) {
+        if (expenseCost >= range[0] && expenseCost <= range[1]) {
           searchedExpenses.add(expense);
         }
       }
     }
     return new ResponseEntity<>(searchedExpenses, HttpStatus.OK);
   }
+
   // Cost Filter Functions //
 
   // Sort Filter Functions //
@@ -259,5 +286,24 @@ public class ExpenseResource {
       Double newMonthlyCost = this.costs.get(year)[monthIndex] - oldExpense.getCost() + expense.getCost();
       this.costs.get(year)[monthIndex] = newMonthlyCost;
     }
+  }
+
+  private Double[] getRanges(String costRange, String code) {
+    int index;
+    if(code.equals("B")) {
+      index = costRange.indexOf("-");
+
+      String val1String = costRange.substring(0, index).replaceAll("^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)$", "");
+      String val2String = costRange.substring(index + 2).replaceAll("^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)$", "");
+
+      Double val1 = Double.parseDouble(val1String.substring(1));
+      Double val2 = Double.parseDouble(val2String.substring(1));
+
+      Double[] range = {val1, val2};
+      return range;
+    }
+    Double val2 = Double.parseDouble(costRange.substring(3));
+    Double[] range = {0.0, val2};
+    return range;
   }
 }
