@@ -22,6 +22,12 @@ public class ExpenseResource {
   private static final String UPDATE_EXPENSE = "update";
   private static final String ADD_EXPENSE = "add";
   private static final String DELETE_EXPENSE = "delete";
+
+  private static final String BETWEEN = "B";
+  private static final String GREATER_THAN = "GT";
+  private static final String LESS_THAN = "LT";
+  private static final String GREATER_THAN_OR_EQUAL = "GTE";
+  private static final String LESS_THAN_OR_EQUAL = "LTE";
   private final ExpenseService expenseService;
   private final String[] months = {"01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"};
 
@@ -32,14 +38,6 @@ public class ExpenseResource {
     this.expenseService = expenseService;
   }
 
-
-  @GetMapping("/TEST")
-  public ResponseEntity<String> getRangesTEST (String stringRange) {
-    Double[] range = this.getRanges(stringRange, "GT");
-    System.out.println(range[0]);
-    System.out.println(range[1]);
-    return new ResponseEntity<>(stringRange, HttpStatus.OK);
-  }
   // Cost Functions //
   @GetMapping("/totalCost")
   public ResponseEntity<String> getTotalExpense(String date) {
@@ -68,26 +66,12 @@ public class ExpenseResource {
     Double[] totalCosts = this.costs.get(year);
     return new ResponseEntity<>(totalCosts, HttpStatus.OK);
   }
-
   // Cost Functions //
 
   // Expense Functions //
   @GetMapping("/getExpensesByMonth")
   public ResponseEntity<List<Expense>> getExpensesByMonth(String date) {
     List<Expense> expenses = this.getExpensesByDate_Private(date);
-    return new ResponseEntity<>(expenses, HttpStatus.OK);
-  }
-
-  @GetMapping("/getExpensesByMonthSorted")
-  //Sort Filter applied here
-  public ResponseEntity<List<Expense>> getExpensesByMonth(String date, String sortCode) {
-    List<Expense> expenses = this.getExpensesByDate_Private(date);
-    if(sortCode.equals("CLH") || sortCode.equals("CHL")) {
-      Collections.sort(expenses, new CostComparator());
-    }
-    else if(sortCode.equals("DOR") || sortCode.equals("DRO")) {
-      Collections.sort(expenses, new DateComparator());
-    }
     return new ResponseEntity<>(expenses, HttpStatus.OK);
   }
 
@@ -99,12 +83,25 @@ public class ExpenseResource {
   }
   // Expense Functions //
 
-  // Search Filter Functions //
-  @GetMapping("/applySearchFilter")
-  public ResponseEntity<List<Expense>> applySearchFilter(String keyword, String date) {
+  // Filter Function //
+  @GetMapping("/applyFilters")
+  public ResponseEntity<List<Expense>> applyFilters(String date, String costFilter, String sortFilter, String searchKeyword) {
     List<Expense> expenses = this.getExpensesByDate_Private(date);
-    List<Expense> searchedExpenses = new ArrayList<>();
+    if(!costFilter.isEmpty()) {
+      expenses = this.applyCostFilter(costFilter, expenses);
+    }
+    if(!sortFilter.isEmpty()) {
+      expenses = this.applySortFilter(sortFilter, expenses);
+    }
+    if(!searchKeyword.isEmpty()) {
+      expenses = this.applySearchFilter(searchKeyword, expenses);
+    }
+    return new ResponseEntity<>(expenses, HttpStatus.OK);
+  }
 
+  // Search Filter Functions //
+  private List<Expense> applySearchFilter(String keyword, List<Expense> expenses) {
+    List<Expense> searchedExpenses = new ArrayList<>();
     ListIterator<Expense> expenseIterator = expenses.listIterator();
     String searchKeyword = keyword.toLowerCase();
     while (expenseIterator.hasNext()) {
@@ -115,74 +112,110 @@ public class ExpenseResource {
         searchedExpenses.add(expense);
       }
     }
-    return new ResponseEntity<>(searchedExpenses, HttpStatus.OK);
+    return searchedExpenses;
   }
   // Search Filter Functions //
 
   // Cost Filter Functions //
-  @GetMapping("/applyCostFilter")
-  public ResponseEntity<List<Expense>> applyCostFilter(String rangeString, String code, String date) {
-    System.out.println(code);
-    Double[] range = this.getRanges(rangeString, code);
-    List<Expense> expenses = this.getExpensesByDate_Private(date);
-    List<Expense> searchedExpenses = new ArrayList<>();
+  private String getRangeCode(String rangeString) {
+    if(rangeString.contains("-")) return this.BETWEEN;
+    else if(rangeString.contains(">=")) return this.GREATER_THAN_OR_EQUAL;
+    else if(rangeString.contains("<=")) return this.LESS_THAN_OR_EQUAL;
+    else if(rangeString.contains(">")) return this.GREATER_THAN;
+    else if(rangeString.contains("<")) return this.LESS_THAN;
+    else return "";
+  }
+
+  private Double[] getRanges(String costRange, String code) {
+    System.out.println("code: " + code);
+    int index;
+    if(code.equals("B")) {
+      index = costRange.indexOf("-");
+
+      String val1String = costRange.substring(0, index).replaceAll("^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)$", "");
+      String val2String = costRange.substring(index + 2).replaceAll("^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)$", "");
+
+      Double val1 = Double.parseDouble(val1String.substring(1));
+      Double val2 = Double.parseDouble(val2String.substring(1));
+
+      Double[] range = {val1, val2};
+      return range;
+    }
+    else if (code.equals("GT") || code.equals("LT")) {
+      Double val2 = Double.parseDouble(costRange.substring(3));
+      Double[] range = {0.0, val2};
+      return range;
+    }
+    Double val2 = Double.parseDouble(costRange.substring(4));
+    Double[] range = {0.0, val2};
+    return range;
+  }
+
+  private List<Expense> applyCostFilter(String rangeString, List<Expense> expenses) {
+    String rangeCode = this.getRangeCode(rangeString);
+    Double[] range = this.getRanges(rangeString, rangeCode);
+    List<Expense> filteredExpenses = new ArrayList<>();
 
     ListIterator<Expense> expenseIterator = expenses.listIterator();
-    if (code.equals("GT")){ //Greater Than
-      System.out.println("HERE");
+    if (rangeCode.equals("GT")){ //Greater Than
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
         if (expenseCost > range[1]) {
-          searchedExpenses.add(expense);
+          filteredExpenses.add(expense);
         }
       }
     }
-    else if (code.equals("GTE")) { //Greater Than or Equal
+    else if (rangeCode.equals("GTE")) { //Greater Than or Equal
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
         if (expenseCost >= range[1]) {
-          searchedExpenses.add(expense);
+          filteredExpenses.add(expense);
         }
       }
     }
-    else if (code.equals("LT")) { //Less Than
+    else if (rangeCode.equals("LT")) { //Less Than
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
         if (expenseCost < range[1]) {
-          searchedExpenses.add(expense);
+          filteredExpenses.add(expense);
         }
       }
     }
-    else if (code.equals("LTE")) { //Less Than or Equal
+    else if (rangeCode.equals("LTE")) { //Less Than or Equal
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
         if (expenseCost <= range[1]) {
-          searchedExpenses.add(expense);
+          filteredExpenses.add(expense);
         }
       }
     }
-    else if (code.equals("B")) { //Between
+    else if (rangeCode.equals("B")) { //Between
       while (expenseIterator.hasNext()) {
         Expense expense = expenseIterator.next();
         Double expenseCost = expense.getCost();
         if (expenseCost >= range[0] && expenseCost <= range[1]) {
-          searchedExpenses.add(expense);
+          filteredExpenses.add(expense);
         }
       }
     }
-    return new ResponseEntity<>(searchedExpenses, HttpStatus.OK);
+    return filteredExpenses;
   }
-
   // Cost Filter Functions //
 
   // Sort Filter Functions //
-
-
-
+  private List<Expense> applySortFilter(String sortCode, List<Expense> expenses) {
+    if(sortCode.equals("CLH") || sortCode.equals("CHL")) {
+      Collections.sort(expenses, new CostComparator());
+    }
+    else if(sortCode.equals("DOR") || sortCode.equals("DRO")) {
+      Collections.sort(expenses, new DateComparator());
+    }
+    return expenses;
+  }
   // Cost Filter Functions //
 
   @GetMapping("/all")
@@ -264,19 +297,17 @@ public class ExpenseResource {
   private void updateCostInfo (Expense expense, String code) {
     double cost = expense.getCost();
     String year = expense.getYear();
-    int monthIndex = Integer.valueOf(expense.getMonth())-1;
+    int monthIndex = Integer.valueOf(expense.getMonth()) - 1;
 
-    if(code.equals("add")) {
+    if (code.equals("add")) {
       Double newCost = this.totalCost.get(year) + cost;
       this.totalCost.replace(year, newCost);
       this.costs.get(year)[monthIndex] += cost;
-    }
-    else if (code.equals("delete")) {
+    } else if (code.equals("delete")) {
       Double newCost = this.totalCost.get(year) - cost;
       this.totalCost.replace(year, newCost);
       this.costs.get(year)[monthIndex] -= cost;
-    }
-    else if (code.equals("update")) {
+    } else if (code.equals("update")) {
       long id = expense.getId();
       Expense oldExpense = expenseService.findExpenseById(id);
 
@@ -286,24 +317,5 @@ public class ExpenseResource {
       Double newMonthlyCost = this.costs.get(year)[monthIndex] - oldExpense.getCost() + expense.getCost();
       this.costs.get(year)[monthIndex] = newMonthlyCost;
     }
-  }
-
-  private Double[] getRanges(String costRange, String code) {
-    int index;
-    if(code.equals("B")) {
-      index = costRange.indexOf("-");
-
-      String val1String = costRange.substring(0, index).replaceAll("^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)$", "");
-      String val2String = costRange.substring(index + 2).replaceAll("^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)$", "");
-
-      Double val1 = Double.parseDouble(val1String.substring(1));
-      Double val2 = Double.parseDouble(val2String.substring(1));
-
-      Double[] range = {val1, val2};
-      return range;
-    }
-    Double val2 = Double.parseDouble(costRange.substring(3));
-    Double[] range = {0.0, val2};
-    return range;
   }
 }
